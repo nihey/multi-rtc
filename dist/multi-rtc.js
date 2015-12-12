@@ -69,10 +69,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	var _mrtc2 = _interopRequireDefault(_mrtc);
 
 	module.exports = (function () {
-	  function Peers() {
+	  function MultiRTC() {
 	    var options = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
 
-	    _classCallCheck(this, Peers);
+	    _classCallCheck(this, MultiRTC);
+
+	    this.CHUNK_SIZE = 1024 * 4;
+
+	    this.blobs = {};
+	    this.buffers = {};
 
 	    this.events = [];
 	    this.peers = {};
@@ -81,13 +86,64 @@ return /******/ (function(modules) { // webpackBootstrap
 	    options.dataChannel = options.channel || options.dataChannel;
 
 	    this.options = options;
+
+	    if (options.wrtc) {
+	      this.File = MultiRTC;
+	      this.atob = options.atob;
+	      this.btoa = options.btoa;
+	      return;
+	    }
+
+	    this.File = window.File;
+	    this.atob = window.atob;
+	    this.btoa = window.btoa;
 	  }
 
 	  /*
-	   * Public API
+	   * Private API
 	   */
 
-	  _createClass(Peers, [{
+	  _createClass(MultiRTC, [{
+	    key: '_sendChunk',
+	    value: function _sendChunk(chunk, blobId, id, size) {
+	      var message = {
+	        type: '__multi-rtc-blob-chunk__',
+	        id: blobId,
+	        content: this.btoa(chunk)
+	      };
+
+	      if (size) {
+	        message.size = size;
+	      }
+
+	      this.send(message, id);
+	    }
+	  }, {
+	    key: '_sendBlob',
+	    value: function _sendBlob(blobId, id, offset) {
+	      var blob = this.blobs[blobId];
+	      var chunk = blob.slice(offset, offset + this.CHUNK_SIZE);
+	      this._sendChunk(chunk, blobId, id, offset === 0 ? blob.length : false);
+	    }
+	  }, {
+	    key: '_sendFile',
+	    value: function _sendFile(blobId, id, offset) {
+	      var blob = this.blobs[blobId];
+
+	      var reader = new FileReader();
+	      reader.onload = function () {
+	        this._sendChunk(reader.result, blobId, id, offset === 0 ? blob.size : false);
+	      };
+
+	      var chunk = blob.slice(offset, offset + this.CHUNK_SIZE);
+	      reader.readAsBinaryString(chunk);
+	    }
+
+	    /*
+	     * Public API
+	     */
+
+	  }, {
 	    key: 'add',
 	    value: function add(id) {
 	      var _this = this;
@@ -125,13 +181,40 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }, {
 	    key: 'send',
 	    value: function send(data, id) {
+	      // Define ids to deliver this data
+	      var ids = id ? [id] : Object.keys(this.peers);
+
 	      data = JSON.stringify(data);
-	      if (id !== undefined) {
-	        return this.peers[id].send(data);
+
+	      ids.forEach(function (key) {
+	        this.peers[key].send(data);
+	      }, this);
+	    }
+	  }, {
+	    key: 'sendBlob',
+	    value: function sendBlob(data, id) {
+	      // Define ids to deliver this data
+	      var ids = id ? [id] : Object.keys(this.peers);
+
+	      // The unique id of this given Blob
+	      var blobId = Math.random().toString(32).split('.')[1];
+
+	      // if sending a File, use the FileReader API
+	      if (data instanceof (this.File || MultiRTC)) {
+	        this.blobs[blobId] = data;
+	        return ids.forEach(function (key) {
+	          this._sendFile(blobId, key, 0);
+	        }, this);
 	      }
 
-	      Object.keys(this.peers).forEach(function (key) {
-	        this.peers[key].send(data);
+	      // if sending anything other than a string, stringify it first
+	      if (typeof data !== 'string') {
+	        data = JSON.stringify(data);
+	      }
+
+	      this.blobs[blobId] = data;
+	      return ids.forEach(function (key) {
+	        this._sendBlob(blobId, key, 0);
 	      }, this);
 	    }
 
@@ -152,7 +235,41 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }, {
 	    key: 'onData',
 	    value: function onData(id, event) {
-	      this.trigger('data', [id, JSON.parse(event.data)]);
+	      var data = JSON.parse(event.data);
+	      // Common case, data is returned to the user directly
+	      if (data.type !== '__multi-rtc-blob-chunk__') {
+	        return this.trigger('data', [id, data]);
+	      } else if (data.offset) {
+	        var blob = this.blobs[data.id];
+	        if (blob instanceof (this.File || MultiRTC)) {
+	          return this._sendFile(data.id, id, data.offset);
+	        }
+	        return this._sendBlob(data.id, id, data.offset);
+	      }
+
+	      var buffer = this.buffers[data.id];
+	      if (!buffer) {
+	        buffer = this.buffers[data.id] = {
+	          size: data.size,
+	          content: ''
+	        };
+	      }
+
+	      var content = this.atob(data.content);
+	      buffer.content += content;
+	      this.trigger('partial-blob', [id, buffer, content]);
+
+	      // If there's more content to be brought, request it
+	      if (buffer.size > buffer.content.length) {
+	        return this.send({
+	          type: '__multi-rtc-blob-chunk__',
+	          offset: buffer.content.length,
+	          id: data.id
+	        }, id);
+	      }
+
+	      // Else trigger the 'data' event to the user with his blob.
+	      this.trigger('data', [id, buffer.content]);
 	    }
 	  }, {
 	    key: 'onClose',
@@ -218,7 +335,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	  }]);
 
-	  return Peers;
+	  return MultiRTC;
 	})();
 
 /***/ },

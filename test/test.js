@@ -1,11 +1,16 @@
-var assert = require('assert'),
+var fs = require('fs'),
+    assert = require('assert'),
     wrtc = require('wrtc'),
+    atob = require('atob'),
+    btoa = require('btoa'),
     MultiRTC = require('../dist/multi-rtc.min.js');
+
+this.File = this;
 
 describe('MultiRTC', function() {
   var Peers = {};
   'ABCD'.split('').forEach(function(key) {
-    Peers[key] = new MultiRTC({wrtc: wrtc, channel: true});
+    Peers[key] = new MultiRTC({wrtc: wrtc, channel: true, atob: atob, btoa: btoa});
   });
 
   var sum = function(number) {
@@ -48,6 +53,19 @@ describe('MultiRTC', function() {
         Peers[key].add(other);
       });
     });
+  });
+
+  var blob = fs.readFileSync('test/blob.blob');
+
+  it('should be able to send blobs', function(done) {
+    Peers.A.on('data', function(id, message) {
+      Peers.A.off('data');
+      assert.equal(id, 'B');
+      assert.equal(message, JSON.stringify(blob));
+      done();
+    });
+
+    Peers.B.sendBlob(blob, 'A');
   });
 
   it('should be able to trade private messages', function(done) {
