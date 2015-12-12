@@ -74,7 +74,7 @@ module.exports = class MultiRTC {
       // Base
       this.peers[id].on('signal', this.onSignal.bind(this, id));
       // MediaStream
-      this.peers[id].on('add-stream', this.onSignal.bind(this, id));
+      this.peers[id].on('add-stream', this.onAddStream.bind(this, id));
       // DataChannel
       this.peers[id].on('channel-open', this.onOpen.bind(this, id));
       this.peers[id].on('channel-message', this.onData.bind(this, id));
@@ -140,6 +140,10 @@ module.exports = class MultiRTC {
 
   onSignal(id, signal) {
     this.trigger('signal', [id, signal]);
+  }
+
+  onAddStream(id, stream) {
+    this.trigger('stream', [id, stream]);
   }
 
   onOpen(id) {

@@ -156,7 +156,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        // Base
 	        this.peers[id].on('signal', this.onSignal.bind(this, id));
 	        // MediaStream
-	        this.peers[id].on('add-stream', this.onSignal.bind(this, id));
+	        this.peers[id].on('add-stream', this.onAddStream.bind(this, id));
 	        // DataChannel
 	        this.peers[id].on('channel-open', this.onOpen.bind(this, id));
 	        this.peers[id].on('channel-message', this.onData.bind(this, id));
@@ -226,6 +226,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    key: 'onSignal',
 	    value: function onSignal(id, signal) {
 	      this.trigger('signal', [id, signal]);
+	    }
+	  }, {
+	    key: 'onAddStream',
+	    value: function onAddStream(id, stream) {
+	      this.trigger('stream'[(id, stream)]);
 	    }
 	  }, {
 	    key: 'onOpen',
