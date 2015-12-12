@@ -1,0 +1,39 @@
+{
+  "name": "multi-rtc",
+  "version": "0.0.0",
+  "description": "Generic Multi-Peer RTCPeerConnection",
+  "main": "dist/multi-rtc.min.js",
+  "scripts": {
+    "build": "webpack && webpack -p --output-filename multi-rtc.min.js && gzip -c ./dist/multi-rtc.min.js > ./dist/multi-rtc.min.js.gz",
+    "watch": "webpack -d --watch",
+    "test": "eslint . && mocha"
+  },
+  "keywords": [
+    "wrtc",
+    "peer",
+    "multi",
+    "webrtc",
+    "multiple",
+    "RTCPeerConnection"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nihey/multi-rtc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nihey/multi-rtc/issues"
+  },
+  "author": "Nihey Takizawa <nihey.takizawa@gmail.com>",
+  "license": "CC0-1.0",
+  "devDependencies": {
+    "babel-core": "^5.8.23",
+    "babel-eslint": "^4.1.3",
+    "babel-loader": "^5.3.2",
+    "eslint": "^1.6.0",
+    "eslint-plugin-no-console-log": "^1.0.0",
+    "mocha": "^2.3.4",
+    "mrtc": "^0.1.0",
+    "webpack": "^1.12.1",
+    "wrtc": "0.0.59"
+  }
+}
