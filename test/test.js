@@ -61,7 +61,7 @@ describe('MultiRTC', function() {
     Peers.A.on('data', function(id, message) {
       Peers.A.off('data');
       assert.equal(id, 'B');
-      assert.equal(message, JSON.stringify(blob));
+      assert.equal(message.content, JSON.stringify(blob));
       done();
     });
 

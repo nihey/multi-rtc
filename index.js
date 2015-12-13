@@ -23,8 +23,8 @@ module.exports = class MultiRTC {
     }
 
     this.File = window.File;
-    this.atob = window.atob;
-    this.btoa = window.btoa;
+    this.atob = window.atob.bind(window);
+    this.btoa = window.btoa.bind(window);
   }
 
   /*
@@ -52,7 +52,7 @@ module.exports = class MultiRTC {
 
   _sendFile(blob, id, offset) {
     let reader = new FileReader();
-    reader.onload = function() {
+    reader.onload = () => {
       this._sendChunk(reader.result, blob.id, id, offset === 0 ? blob.content.size : false);
     };
 
@@ -171,13 +171,14 @@ module.exports = class MultiRTC {
     // Common case, data is returned to the user directly
     if (data.type !== '__multi-rtc-blob-chunk__') {
       return this.trigger('data', [id, data]);
-    } else if (data.offset) {
-      this.blobs[data.id].send(id, data.offset);
+    } else if (data.offset !== undefined) {
+      return this.blobs[data.id].send(id, data.offset);
     }
 
     let buffer = this.buffers[data.id];
     if (!buffer) {
       buffer = this.buffers[data.id] = {
+        id: data.id,
         size: data.size,
         content: '',
       };
@@ -193,7 +194,8 @@ module.exports = class MultiRTC {
     }
 
     // Else trigger the 'data' event to the user with his blob.
-    this.trigger('data', [id, buffer.content]);
+    this.trigger('data', [id, buffer]);
+    delete this.buffers[data.id];
   }
 
   onClose(id) {

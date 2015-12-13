@@ -1,6 +1,6 @@
 {
   "name": "multi-rtc",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Generic Multi-Peer RTCPeerConnection",
   "main": "dist/multi-rtc.min.js",
   "scripts": {

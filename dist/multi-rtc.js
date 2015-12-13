@@ -95,8 +95,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 
 	    this.File = window.File;
-	    this.atob = window.atob;
-	    this.btoa = window.btoa;
+	    this.atob = window.atob.bind(window);
+	    this.btoa = window.btoa.bind(window);
 	  }
 
 	  /*
@@ -127,9 +127,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }, {
 	    key: '_sendFile',
 	    value: function _sendFile(blob, id, offset) {
+	      var _this = this;
+
 	      var reader = new FileReader();
 	      reader.onload = function () {
-	        this._sendChunk(reader.result, blob.id, id, offset === 0 ? blob.content.size : false);
+	        _this._sendChunk(reader.result, blob.id, id, offset === 0 ? blob.content.size : false);
 	      };
 
 	      var chunk = blob.content.slice(offset, offset + this.CHUNK_SIZE);
@@ -143,7 +145,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }, {
 	    key: 'add',
 	    value: function add(id) {
-	      var _this = this;
+	      var _this2 = this;
 
 	      var signal = arguments.length <= 1 || arguments[1] === undefined ? null : arguments[1];
 
@@ -163,7 +165,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	        // Monkey Patch a smoothier send method into MRTC
 	        this.peers[id].send = function (data) {
-	          var channel = _this.peers[id].channel;
+	          var channel = _this2.peers[id].channel;
 	          if (channel && channel.readyState === 'open') {
 	            channel.send(data);
 	          }
@@ -201,7 +203,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }, {
 	    key: 'addBlob',
 	    value: function addBlob(data) {
-	      var _this2 = this;
+	      var _this3 = this;
 
 	      // The unique id of this given Blob
 	      var blobId = Math.random().toString(32).split('.')[1];
@@ -211,7 +213,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      if (data instanceof (this.File || MultiRTC)) {
 	        this.blobs[blobId].content = data;
 	        this.blobs[blobId].send = function (key, offset) {
-	          _this2._sendFile(_this2.blobs[blobId], key, offset);
+	          _this3._sendFile(_this3.blobs[blobId], key, offset);
 	        };
 	        return this.blobs[blobId];
 	      }
@@ -223,7 +225,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	      this.blobs[blobId].content = data;
 	      this.blobs[blobId].send = function (key, offset) {
-	        _this2._sendBlob(_this2.blobs[blobId], key, offset);
+	        _this3._sendBlob(_this3.blobs[blobId], key, offset);
 	      };
 
 	      return this.blobs[blobId];
@@ -266,13 +268,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	      // Common case, data is returned to the user directly
 	      if (data.type !== '__multi-rtc-blob-chunk__') {
 	        return this.trigger('data', [id, data]);
-	      } else if (data.offset) {
-	        this.blobs[data.id].send(id, data.offset);
+	      } else if (data.offset !== undefined) {
+	        return this.blobs[data.id].send(id, data.offset);
 	      }
 
 	      var buffer = this.buffers[data.id];
 	      if (!buffer) {
 	        buffer = this.buffers[data.id] = {
+	          id: data.id,
 	          size: data.size,
 	          content: ''
 	        };
@@ -288,7 +291,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	      }
 
 	      // Else trigger the 'data' event to the user with his blob.
-	      this.trigger('data', [id, buffer.content]);
+	      this.trigger('data', [id, buffer]);
+	      delete this.buffers[data.id];
 	    }
 	  }, {
 	    key: 'onClose',
