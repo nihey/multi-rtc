@@ -45,21 +45,18 @@ module.exports = class MultiRTC {
     this.send(message, id);
   }
 
-  _sendBlob(blobId, id, offset) {
-    let blob = this.blobs[blobId];
-    let chunk = blob.slice(offset, offset + this.CHUNK_SIZE);
-    this._sendChunk(chunk, blobId, id, offset === 0 ? blob.length : false);
+  _sendBlob(blob, id, offset) {
+    let chunk = blob.content.slice(offset, offset + this.CHUNK_SIZE);
+    this._sendChunk(chunk, blob.id, id, offset === 0 ? blob.content.length : false);
   }
 
-  _sendFile(blobId, id, offset) {
-    let blob = this.blobs[blobId];
-
+  _sendFile(blob, id, offset) {
     let reader = new FileReader();
     reader.onload = function() {
-      this._sendChunk(reader.result, blobId, id, offset === 0 ? blob.size : false);
+      this._sendChunk(reader.result, blob.id, id, offset === 0 ? blob.content.size : false);
     };
 
-    let chunk = blob.slice(offset, offset + this.CHUNK_SIZE);
+    let chunk = blob.content.slice(offset, offset + this.CHUNK_SIZE);
     reader.readAsBinaryString(chunk);
   }
 
@@ -108,19 +105,26 @@ module.exports = class MultiRTC {
     }, this);
   }
 
-  sendBlob(data, id) {
-    // Define ids to deliver this data
-    let ids = id ? [id] : Object.keys(this.peers);
+  requireBlob(peerId, blobId, offset=0) {
+    return this.send({
+      type: '__multi-rtc-blob-chunk__',
+      offset: offset,
+      id: blobId,
+    }, peerId);
+  }
 
+  addBlob(data) {
     // The unique id of this given Blob
     let blobId = Math.random().toString(32).split('.')[1];
+    this.blobs[blobId] = {id: blobId};
 
     // if sending a File, use the FileReader API
     if (data instanceof (this.File || MultiRTC)) {
-      this.blobs[blobId] = data;
-      return ids.forEach(function(key) {
-        this._sendFile(blobId, key, 0);
-      }, this);
+      this.blobs[blobId].content = data;
+      this.blobs[blobId].send = (key, offset) => {
+        this._sendFile(this.blobs[blobId], key, offset);
+      };
+      return this.blobs[blobId];
     }
 
     // if sending anything other than a string, stringify it first
@@ -128,9 +132,21 @@ module.exports = class MultiRTC {
       data = JSON.stringify(data);
     }
 
-    this.blobs[blobId] = data;
+    this.blobs[blobId].content = data;
+    this.blobs[blobId].send = (key, offset) => {
+      this._sendBlob(this.blobs[blobId], key, offset);
+    };
+
+    return this.blobs[blobId];
+  }
+
+  sendBlob(data, id) {
+    let blob = this.addBlob(data);
+
+    // Define ids to deliver this data
+    let ids = id ? [id] : Object.keys(this.peers);
     return ids.forEach(function(key) {
-      this._sendBlob(blobId, key, 0);
+      blob.send(key, 0);
     }, this);
   }
 
@@ -156,11 +172,7 @@ module.exports = class MultiRTC {
     if (data.type !== '__multi-rtc-blob-chunk__') {
       return this.trigger('data', [id, data]);
     } else if (data.offset) {
-      let blob = this.blobs[data.id];
-      if (blob instanceof (this.File || MultiRTC)) {
-        return this._sendFile(data.id, id, data.offset);
-      }
-      return this._sendBlob(data.id, id, data.offset);
+      this.blobs[data.id].send(id, data.offset);
     }
 
     let buffer = this.buffers[data.id];
@@ -171,17 +183,13 @@ module.exports = class MultiRTC {
       };
     }
 
-    let content = this.atob(data.content);
+    let content = this.atob(data.content || '');
     buffer.content += content;
     this.trigger('partial-blob', [id, buffer, content]);
 
     // If there's more content to be brought, request it
     if (buffer.size > buffer.content.length) {
-      return this.send({
-        type: '__multi-rtc-blob-chunk__',
-        offset: buffer.content.length,
-        id: data.id,
-      }, id);
+      return this.requireBlob(id, data.id, buffer.content.length);
     }
 
     // Else trigger the 'data' event to the user with his blob.
